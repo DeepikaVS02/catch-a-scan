@@ -2,7 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   LayoutDashboard,
-  ScanLine,
+  Bluetooth,
   BarChart3,
   Settings,
   Users,
@@ -19,7 +19,7 @@ import { currentUser } from "@/lib/mock-data";
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/admin", label: "Admin Console", icon: Users },
-  { to: "/scanner", label: "QR Scanner", icon: ScanLine },
+  { to: "/scanner", label: "Bluetooth Check-in", icon: Bluetooth },
   { to: "/reports", label: "Reports", icon: BarChart3 },
   { to: "/profile", label: "Settings", icon: Settings },
 ] as const;
