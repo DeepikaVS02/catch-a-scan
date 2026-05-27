@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   Bluetooth,
+  BluetoothOff,
   Smartphone,
   CheckCircle2,
   Radio,
@@ -49,6 +50,44 @@ function Scanner() {
   const [scanning, setScanning] = useState(false);
   const [marked, setMarked] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [btOn, setBtOn] = useState(false);
+  const [autoCheck, setAutoCheck] = useState(true);
+  const [markedAt, setMarkedAt] = useState<string | null>(null);
+
+  // Poll real Bluetooth availability when possible; otherwise rely on the manual toggle.
+  useEffect(() => {
+    const nav = typeof navigator !== "undefined" ? (navigator as any) : null;
+    if (!nav?.bluetooth?.getAvailability) return;
+    let active = true;
+    const check = async () => {
+      try {
+        const ok = await nav.bluetooth.getAvailability();
+        if (active) setBtOn(Boolean(ok));
+      } catch {}
+    };
+    check();
+    const t = setInterval(check, 4000);
+    nav.bluetooth.addEventListener?.("availabilitychanged", (e: any) => setBtOn(Boolean(e.value)));
+    return () => {
+      active = false;
+      clearInterval(t);
+    };
+  }, []);
+
+  // Auto-mark attendance the moment Bluetooth is detected as on for a paired phone.
+  useEffect(() => {
+    if (!autoCheck || !device || !btOn || marked) return;
+    const t = setTimeout(() => {
+      setMarked(true);
+      setMarkedAt(new Date().toLocaleTimeString());
+    }, 900);
+    return () => clearTimeout(t);
+  }, [autoCheck, device, btOn, marked]);
+
+  // Reset the "marked" state if Bluetooth goes off so the next time it's on it re-marks.
+  useEffect(() => {
+    if (!btOn) setMarked(false);
+  }, [btOn]);
 
   // Restore previously paired phone
   useEffect(() => {
@@ -116,6 +155,7 @@ function Scanner() {
   const checkIn = () => {
     if (!device) return;
     setMarked(true);
+    setMarkedAt(new Date().toLocaleTimeString());
   };
 
   return (
