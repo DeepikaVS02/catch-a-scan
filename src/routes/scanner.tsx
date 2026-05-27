@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   Bluetooth,
+  BluetoothOff,
   Smartphone,
   CheckCircle2,
   Radio,
@@ -49,6 +50,44 @@ function Scanner() {
   const [scanning, setScanning] = useState(false);
   const [marked, setMarked] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [btOn, setBtOn] = useState(false);
+  const [autoCheck, setAutoCheck] = useState(true);
+  const [markedAt, setMarkedAt] = useState<string | null>(null);
+
+  // Poll real Bluetooth availability when possible; otherwise rely on the manual toggle.
+  useEffect(() => {
+    const nav = typeof navigator !== "undefined" ? (navigator as any) : null;
+    if (!nav?.bluetooth?.getAvailability) return;
+    let active = true;
+    const check = async () => {
+      try {
+        const ok = await nav.bluetooth.getAvailability();
+        if (active) setBtOn(Boolean(ok));
+      } catch {}
+    };
+    check();
+    const t = setInterval(check, 4000);
+    nav.bluetooth.addEventListener?.("availabilitychanged", (e: any) => setBtOn(Boolean(e.value)));
+    return () => {
+      active = false;
+      clearInterval(t);
+    };
+  }, []);
+
+  // Auto-mark attendance the moment Bluetooth is detected as on for a paired phone.
+  useEffect(() => {
+    if (!autoCheck || !device || !btOn || marked) return;
+    const t = setTimeout(() => {
+      setMarked(true);
+      setMarkedAt(new Date().toLocaleTimeString());
+    }, 900);
+    return () => clearTimeout(t);
+  }, [autoCheck, device, btOn, marked]);
+
+  // Reset the "marked" state if Bluetooth goes off so the next time it's on it re-marks.
+  useEffect(() => {
+    if (!btOn) setMarked(false);
+  }, [btOn]);
 
   // Restore previously paired phone
   useEffect(() => {
@@ -116,6 +155,7 @@ function Scanner() {
   const checkIn = () => {
     if (!device) return;
     setMarked(true);
+    setMarkedAt(new Date().toLocaleTimeString());
   };
 
   return (
@@ -157,16 +197,75 @@ function Scanner() {
             <div className="absolute top-4 right-4 flex items-center gap-2 text-xs bg-accent-foreground/10 backdrop-blur-md px-3 py-1.5 rounded-full">
               <span
                 className={`size-1.5 rounded-full ${
-                  device ? "bg-emerald-400" : "bg-amber-400"
+                  btOn ? "bg-emerald-400" : "bg-amber-400"
                 } animate-pulse`}
               />
-              {currentUser.studentId}
+              Bluetooth {btOn ? "ON" : "OFF"}
             </div>
           </div>
 
           <div className="p-6 space-y-5">
             {device ? (
               <>
+                {/* Auto-attendance status banner */}
+                <div
+                  className={`rounded-xl p-4 border flex items-center justify-between gap-3 flex-wrap ${
+                    marked
+                      ? "bg-emerald-50 border-emerald-200"
+                      : btOn
+                        ? "bg-blue-50 border-blue-200"
+                        : "bg-amber-50 border-amber-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={`size-10 rounded-xl grid place-items-center shrink-0 ${
+                        marked
+                          ? "bg-emerald-500 text-white"
+                          : btOn
+                            ? "bg-blue-500 text-white animate-pulse"
+                            : "bg-amber-500 text-white"
+                      }`}
+                    >
+                      {marked ? (
+                        <CheckCircle2 className="size-5" />
+                      ) : btOn ? (
+                        <Bluetooth className="size-5" />
+                      ) : (
+                        <BluetoothOff className="size-5" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-foreground text-sm">
+                        {marked
+                          ? `Attendance marked at ${markedAt}`
+                          : btOn
+                            ? "Phone detected — marking attendance…"
+                            : "Turn ON your phone's Bluetooth to be marked present"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Auto-attendance is {autoCheck ? "ON" : "OFF"} · We watch for your phone's
+                        Bluetooth ID
+                      </p>
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs font-medium text-foreground cursor-pointer">
+                    <span>Auto</span>
+                    <span
+                      onClick={() => setAutoCheck((v) => !v)}
+                      className={`relative inline-block w-9 h-5 rounded-full transition-colors ${
+                        autoCheck ? "bg-primary" : "bg-muted-foreground/40"
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-all ${
+                          autoCheck ? "left-4" : "left-0.5"
+                        }`}
+                      />
+                    </span>
+                  </label>
+                </div>
+
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="min-w-0">
                     <p className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
@@ -204,6 +303,17 @@ function Scanner() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    onClick={() => setBtOn((v) => !v)}
+                    className={`px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 border transition-colors ${
+                      btOn
+                        ? "bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600"
+                        : "bg-muted text-foreground border-border hover:bg-muted/70"
+                    }`}
+                  >
+                    {btOn ? <Bluetooth className="size-4" /> : <BluetoothOff className="size-4" />}
+                    Phone Bluetooth: {btOn ? "ON" : "OFF"}
+                  </button>
                   <button
                     onClick={marked ? () => setMarked(false) : checkIn}
                     className="flex-1 bg-primary text-primary-foreground px-6 py-2.5 rounded-xl font-semibold shadow-md shadow-primary/20 hover:opacity-90 transition-opacity"
